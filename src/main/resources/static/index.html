@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Northeastern University Course Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #C41E3A; /* Northeastern Red */
+            --secondary: #000000; /* Black */
+            --background: #FFFFFF; /* White */
+            --text: #2C3E50; /* Dark Blue-Grey */
+            --accent: #E8E8E8; /* Light Grey */
+            --spacing: 16px;
+            --error: #E74C3C;
+            --success: #2ECC71;
+            --border-radius: 8px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            line-height: 1.5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: var(--spacing);
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--spacing);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--background);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--spacing);
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing);
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--primary);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background-color: var(--accent);
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message p {
+            margin-bottom: 8px;
+        }
+
+        .message p:last-child {
+            margin-bottom: 0;
+        }
+
+        .course-card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 12px 0;
+            padding: 16px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .course-card.available {
+            border-left-color: var(--success);
+        }
+
+        .course-card.unavailable {
+            border-left-color: var(--error);
+        }
+
+        .course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .course-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .course-availability {
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: var(--accent);
+        }
+
+        .course-card h4 {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .course-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .course-details p {
+            margin: 4px 0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: var(--spacing);
+            padding: var(--spacing);
+            background-color: white;
+            border-top: 1px solid var(--accent);
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--accent);
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #message-input:focus {
+            border-color: var(--primary);
+        }
+
+        #send-button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 0 20px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #send-button:hover {
+            background-color: #a11a31;
+        }
+
+        #send-button:disabled {
+            background-color: var(--accent);
+            color: var(--text);
+            cursor: not-allowed;
+        }
+
+        .thinking {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #777;
+            padding: 8px 12px;
+            background-color: var(--accent);
+            border-radius: 12px;
+            align-self: flex-start;
+        }
+
+        .thinking-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .thinking-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #777;
+            animation: thinking 1.4s infinite ease-in-out both;
+        }
+
+        .thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes thinking {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        @media (max-width: 768px) {
+            .message {
+                max-width: 90%;
+            }
+        }
+
+        footer {
+            padding: var(--spacing);
+            text-align: center;
+            font-size: 0.8rem;
+            color: #777;
+            background-color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Northeastern University Course Assistant</h1>
+</header>
+
+<div class="container">
+    <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+            <div class="message assistant">
+                <p>Hello! I'm the Northeastern University Course Assistant. I can help you find information about courses, check availability, or answer questions about the course catalog. How can I assist you today?</p>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <input type="text" id="message-input" placeholder="Ask about courses, schedules, or availability..." />
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+</div>
+
+<footer>
+    &copy; 2025 Northeastern University Course Assistant
+</footer>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const chatMessages = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+
+        // Function to add a message to the chat
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+
+            // Handle HTML content (for course cards) or plain text
+            if (text.includes('<div class="course-card')) {
+                messageDiv.innerHTML = text;
+            } else {
+                // Convert plain text to paragraphs
+                const paragraphs = text.split('\n').filter(p => p.trim() !== '');
+                paragraphs.forEach(paragraph => {
+                    const p = document.createElement('p');
+                    p.textContent = paragraph;
+                    messageDiv.appendChild(p);
+                });
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Function to show the assistant is thinking
+        function showThinking() {
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.classList.add('thinking');
+            thinkingDiv.id = 'thinking-indicator';
+
+            const text = document.createElement('span');
+            text.textContent = 'Thinking';
+
+            const dots = document.createElement('div');
+            dots.classList.add('thinking-dots');
+
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement('span');
+                dots.appendChild(dot);
+            }
+
+            thinkingDiv.appendChild(text);
+            thinkingDiv.appendChild(dots);
+            chatMessages.appendChild(thinkingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Function to hide the thinking indicator
+        function hideThinking() {
+            const thinkingIndicator = document.getElementById('thinking-indicator');
+            if (thinkingIndicator) {
+                thinkingIndicator.remove();
+            }
+        }
+
+        // Function to send a message to the server
+        async function sendMessage(message) {
+            try {
+                // Show thinking indicator
+                showThinking();
+
+                // Disable input while processing
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+
+                // Send to server
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+
+                // Hide thinking indicator
+                hideThinking();
+
+                // Add assistant's response
+                addMessage(data.response, 'assistant');
+
+                // Re-enable input
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+
+            } catch (error) {
+                console.error('Error:', error);
+                hideThinking();
+                addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+
+                // Re-enable input
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+            }
+        }
+
+        // Event listener for send button
+        sendButton.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                // Add user message to chat
+                addMessage(message, 'user');
+
+                // Clear input
+                messageInput.value = '';
+
+                // Send to server
+                sendMessage(message);
+            }
+        });
+
+        // Event listener for pressing Enter in the input field
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const message = messageInput.value.trim();
+                if (message) {
+                    // Add user message to chat
+                    addMessage(message, 'user');
+
+                    // Clear input
+                    messageInput.value = '';
+
+                    // Send to server
+                    sendMessage(message);
+                }
+            }
+        });
+
+        // Focus the input field when the page loads
+        messageInput.focus();
+
+        // Sample course card rendering (for testing)
+        // Uncomment to test
+        /*
+        setTimeout(() => {
+            const sampleCourseResponse = `
+                <p>Here are the courses that match your search for Object-Oriented Design:</p>
+                <div class="course-card available">
+                    <div class="course-header">
+                        <h3>CSYE 6200-02</h3>
+                        <span class="course-availability">Open - 28 seats available</span>
+                    </div>
+                    <h4>Concepts of Object-Oriented Design</h4>
+                    <div class="course-details">
+                        <p><strong>Instructor:</strong> Daniel Peters</p>
+                        <p><strong>Schedule:</strong> Friday 6:00 pm - 9:30 pm</p>
+                        <p><strong>Location:</strong> Hayden Hall 221</p>
+                        <p><strong>Campus:</strong> Boston</p>
+                        <p><strong>Credits:</strong> 4</p>
+                        <p><strong>Enrollment:</strong> 22/50 (28 seats available)</p>
+                    </div>
+                </div>
+            `;
+            addMessage(sampleCourseResponse, 'assistant');
+        }, 2000);
+        */
+    });

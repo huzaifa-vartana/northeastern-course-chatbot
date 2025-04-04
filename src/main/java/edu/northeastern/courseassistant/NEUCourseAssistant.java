@@ -39,7 +39,7 @@ public class NEUCourseAssistant {
             LLMService llmService = new LLMService(openAiApiKey);
 
             // Start the actor system
-            ActorSystem<Void> system = createActorSystem();
+            ActorSystem<Void> system = createActorSystem(ragService, llmService);
 
             // Start the web server
             WebServer webServer = new WebServer(ragService, llmService);
@@ -56,11 +56,11 @@ public class NEUCourseAssistant {
     /**
      * Creates and starts the Akka actor system
      */
-    private static ActorSystem<Void> createActorSystem() {
+    private static ActorSystem<Void> createActorSystem(RAGService ragService, LLMService llmService) {
         Behavior<Void> rootBehavior = Behaviors.setup(context -> {
             // Create the ConversationManager actor
             ActorRef<ConversationProtocol.Command> conversationManager =
-                    context.spawn(ConversationManagerActor.create(), "conversation-manager");
+                    context.spawn(ConversationManagerActor.create(ragService, llmService), "conversation-manager");
 
             // Initialize and do any startup tasks
             // ...

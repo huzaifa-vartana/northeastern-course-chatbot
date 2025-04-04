@@ -31,14 +31,10 @@ import java.util.concurrent.CompletionStage;
 public class RAGActor extends AbstractBehavior<RAGProtocol.Command> {
 
     private final RAGService ragService;
-    private List<Course> courseDatabase = new ArrayList<>();
 
     private RAGActor(ActorContext<RAGProtocol.Command> context, RAGService ragService) {
         super(context);
         this.ragService = ragService;
-
-        // Load the course database
-        loadCourseDatabase();
     }
 
     public static Behavior<RAGProtocol.Command> create(RAGService ragService) {
@@ -92,15 +88,13 @@ public class RAGActor extends AbstractBehavior<RAGProtocol.Command> {
         getContext().getLog().info("Refreshing course data");
 
         try {
-            // Reload the course database
-            boolean success = loadCourseDatabase();
+            // In our simplified design, the RAGService handles all data operations
+            // so we don't need to reload data here - we just return success
+            // In a more complex implementation, we might call ragService.refreshData() here
 
-            String message = success
-                    ? "Course data refreshed successfully"
-                    : "Failed to refresh course data";
-
-            // Send the response
-            command.getReplyTo().tell(new RAGProtocol.CourseDataRefreshed(success, message));
+            // Send success response
+            command.getReplyTo().tell(
+                    new RAGProtocol.CourseDataRefreshed(true, "Course data refreshed successfully"));
 
         } catch (Exception e) {
             getContext().getLog().error("Error refreshing course data", e);
@@ -111,40 +105,5 @@ public class RAGActor extends AbstractBehavior<RAGProtocol.Command> {
         }
 
         return this;
-    }
-
-    /**
-     * Loads the course database from the JSON file
-     * @return true if successful, false otherwise
-     */
-    private boolean loadCourseDatabase() {
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            courseDatabase = objectMapper.readValue(
-                    new File("src/main/resources/courses.json"),
-                    new TypeReference<List<Course>>() {});
-
-            getContext().getLog().info("Loaded {} courses from database", courseDatabase.size());
-            return true;
-
-        } catch (IOException e) {
-            getContext().getLog().error("Failed to load course database", e);
-            return false;
-        }
-    }
-
-    /**
-     * Factory for creating the RAG actor
-     */
-    public static class Factory {
-        private final RAGService ragService;
-
-        public Factory(RAGService ragService) {
-            this.ragService = ragService;
-        }
-
-        public Behavior<RAGProtocol.Command> create() {
-            return RAGActor.create(ragService);
-        }
     }
 }

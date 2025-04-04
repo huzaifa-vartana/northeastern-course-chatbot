@@ -164,19 +164,4 @@ public class LLMActor extends AbstractBehavior<LLMProtocol.Command> {
 
         return response.toString();
     }
-
-    /**
-     * Factory for creating the LLM actor
-     */
-    public static class Factory {
-        private final LLMService llmService;
-
-        public Factory(LLMService llmService) {
-            this.llmService = llmService;
-        }
-
-        public Behavior<LLMProtocol.Command> create() {
-            return LLMActor.create(llmService);
-        }
-    }
 }

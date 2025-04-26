@@ -36,9 +36,18 @@ public class RAGService {
      * @param openAiApiKey API key for OpenAI
      */
     public RAGService(String openAiApiKey) {
-        this.openAiService = new OpenAiService(openAiApiKey);
+        // Set a reasonable timeout for API calls
+        this.openAiService = new OpenAiService(openAiApiKey, 30);
         this.courseDatabase = loadCourses();
-        initializeEmbeddings();
+
+        // Only initialize embeddings if API key is valid
+        if (openAiApiKey != null && !openAiApiKey.trim().isEmpty()
+                && !openAiApiKey.equals("your_openai_api_key_here")) {
+            initializeEmbeddings();
+        } else {
+            System.err.println("WARNING: OpenAI API key is not set or is invalid. " +
+                    "Embeddings will not be initialized.");
+        }
     }
 
     /**
@@ -109,7 +118,19 @@ public class RAGService {
             }
 
             return embeddingArray;
+        } catch (retrofit2.adapter.rxjava2.HttpException e) {
+            if (e.code() == 401) {
+                System.err.println("ERROR: Authentication failed with OpenAI API. " +
+                        "Please check your API key.");
+            } else {
+                System.err.println("ERROR: HTTP error " + e.code() + " when calling OpenAI API: " +
+                        e.getMessage());
+            }
+            e.printStackTrace();
+            // Return a zero vector if there's an error
+            return new float[EMBEDDING_DIMENSION];
         } catch (Exception e) {
+            System.err.println("ERROR: Unexpected error when calling OpenAI API: " + e.getMessage());
             e.printStackTrace();
             // Return a zero vector if there's an error
             return new float[EMBEDDING_DIMENSION];

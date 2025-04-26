@@ -34,6 +34,16 @@ public class NEUCourseAssistant {
                 System.exit(1);
             }
 
+            // Get the OpenAI API key from the configuration
+//            openAiApiKey = properties.getProperty("openai.api.key");
+
+            if (openAiApiKey == null || openAiApiKey.trim().isEmpty()
+                    || openAiApiKey.equals("your_openai_api_key_here")) {
+                System.out.println("WARNING: OpenAI API key is not set or is using the default value.");
+                System.out.println("The system will use mock data instead of actual API calls.");
+                System.out.println("Set a valid API key in application.properties or as an environment variable.");
+            }
+
             // Initialize services
             RAGService ragService = new RAGService(openAiApiKey);
             LLMService llmService = new LLMService(openAiApiKey);

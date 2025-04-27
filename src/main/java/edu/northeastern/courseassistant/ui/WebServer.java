@@ -9,6 +9,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Handler;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -37,6 +40,7 @@ public class WebServer {
     private final RAGService ragService;
     private final LLMService llmService;
     private final ObjectMapper objectMapper;
+    private Server server;
 
     /**
      * Constructor
@@ -53,7 +57,22 @@ public class WebServer {
      * Starts the web server
      */
     public void start() throws Exception {
-        Server server = new Server(PORT);
+        server = new Server();
+
+        // HTTP Configuration
+        HttpConfiguration httpConfig = new HttpConfiguration();
+        httpConfig.setSendServerVersion(false);
+        httpConfig.setSendDateHeader(false);
+
+        // Create HTTP connector
+        ServerConnector connector = new ServerConnector(server, new HttpConnectionFactory(httpConfig));
+        connector.setPort(PORT);
+
+        // Configure connection idle timeout (60 seconds instead of default 30)
+        connector.setIdleTimeout(60000);
+
+        // Add connector to server
+        server.addConnector(connector);
 
         // Resource handler for static files
         ResourceHandler resourceHandler = new ResourceHandler();
@@ -76,7 +95,19 @@ public class WebServer {
         // Start the server
         server.start();
         logger.info("Server started on port " + PORT);
-        server.join();
+
+        // Don't join the server thread, so we can return control to the caller
+        // server.join();
+    }
+
+    /**
+     * Stops the server
+     */
+    public void stop() throws Exception {
+        if (server != null && server.isRunning()) {
+            server.stop();
+            logger.info("Server stopped");
+        }
     }
 
     /**
@@ -87,59 +118,72 @@ public class WebServer {
         protected void doPost(HttpServletRequest req, HttpServletResponse resp)
                 throws ServletException, IOException {
 
-            // Parse JSON request
-            Map<String, Object> requestData = objectMapper.readValue(
-                    req.getInputStream(),
-                    new TypeReference<Map<String, Object>>() {});
+            try {
+                // Parse JSON request
+                Map<String, Object> requestData = objectMapper.readValue(
+                        req.getInputStream(),
+                        new TypeReference<Map<String, Object>>() {});
 
-            String userMessage = (String) requestData.get("message");
-            logger.info("Received message: " + userMessage);
+                String userMessage = (String) requestData.get("message");
+                logger.info("Received message: " + userMessage);
 
-            // Get or create session
-            HttpSession session = req.getSession(true);
+                // Get or create session
+                HttpSession session = req.getSession(true);
 
-            // Get conversation history from session
-            @SuppressWarnings("unchecked")
-            List<String> conversationHistory = (List<String>) session.getAttribute("conversationHistory");
-            if (conversationHistory == null) {
-                conversationHistory = new ArrayList<>();
-                session.setAttribute("conversationHistory", conversationHistory);
+                // Get conversation history from session
+                @SuppressWarnings("unchecked")
+                List<String> conversationHistory = (List<String>) session.getAttribute("conversationHistory");
+                if (conversationHistory == null) {
+                    conversationHistory = new ArrayList<>();
+                    session.setAttribute("conversationHistory", conversationHistory);
+                }
+
+                // Add user message to conversation history
+                conversationHistory.add("User: " + userMessage);
+
+                // Find relevant courses using RAG
+                List<Course> relevantCourses = ragService.enhancedSearch(userMessage);
+
+                // Generate response using LLM
+                String response = llmService.generateResponse(userMessage, relevantCourses, conversationHistory);
+
+                // Extract highlighted courses
+                List<Course> highlightedCourses = llmService.extractHighlightedCourses(response, relevantCourses);
+
+                // Format response with course cards if needed
+                String formattedResponse = formatResponseWithCourseCards(response, highlightedCourses);
+
+                // Add assistant response to conversation history
+                conversationHistory.add("Assistant: " + response);
+
+                // Limit conversation history size (keep last 20 messages)
+                if (conversationHistory.size() > 20) {
+                    conversationHistory = conversationHistory.subList(
+                            conversationHistory.size() - 20,
+                            conversationHistory.size());
+                    session.setAttribute("conversationHistory", conversationHistory);
+                }
+
+                // Prepare response
+                ObjectNode jsonResponse = objectMapper.createObjectNode();
+                jsonResponse.put("response", formattedResponse);
+
+                // Send response
+                resp.setContentType("application/json");
+                resp.setCharacterEncoding("UTF-8");
+                resp.getWriter().write(objectMapper.writeValueAsString(jsonResponse));
+            } catch (Exception e) {
+                logger.error("Error processing request", e);
+
+                // Send error response
+                resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                resp.setContentType("application/json");
+                resp.setCharacterEncoding("UTF-8");
+
+                ObjectNode errorResponse = objectMapper.createObjectNode();
+                errorResponse.put("error", "An error occurred while processing your request");
+                resp.getWriter().write(objectMapper.writeValueAsString(errorResponse));
             }
-
-            // Add user message to conversation history
-            conversationHistory.add("User: " + userMessage);
-
-            // Find relevant courses using RAG
-            List<Course> relevantCourses = ragService.enhancedSearch(userMessage);
-
-            // Generate response using LLM
-            String response = llmService.generateResponse(userMessage, relevantCourses, conversationHistory);
-
-            // Extract highlighted courses
-            List<Course> highlightedCourses = llmService.extractHighlightedCourses(response, relevantCourses);
-
-            // Format response with course cards if needed
-            String formattedResponse = formatResponseWithCourseCards(response, highlightedCourses);
-
-            // Add assistant response to conversation history
-            conversationHistory.add("Assistant: " + response);
-
-            // Limit conversation history size (keep last 20 messages)
-            if (conversationHistory.size() > 20) {
-                conversationHistory = conversationHistory.subList(
-                        conversationHistory.size() - 20,
-                        conversationHistory.size());
-                session.setAttribute("conversationHistory", conversationHistory);
-            }
-
-            // Prepare response
-            ObjectNode jsonResponse = objectMapper.createObjectNode();
-            jsonResponse.put("response", formattedResponse);
-
-            // Send response
-            resp.setContentType("application/json");
-            resp.setCharacterEncoding("UTF-8");
-            resp.getWriter().write(objectMapper.writeValueAsString(jsonResponse));
         }
 
         /**

@@ -24,6 +24,10 @@ public class NEUCourseAssistant {
     private static final Logger logger = LoggerFactory.getLogger(NEUCourseAssistant.class);
 
     public static void main(String[] args) {
+        RAGService ragService = null;
+        WebServer webServer = null;
+        ActorSystem<Void> system = null;
+
         try {
             // Load configuration
             Properties config = loadConfig();
@@ -34,28 +38,53 @@ public class NEUCourseAssistant {
                 System.exit(1);
             }
 
-            // Get the OpenAI API key from the configuration
-//            openAiApiKey = properties.getProperty("openai.api.key");
-
-            if (openAiApiKey == null || openAiApiKey.trim().isEmpty()
-                    || openAiApiKey.equals("your_openai_api_key_here")) {
-                System.out.println("WARNING: OpenAI API key is not set or is using the default value.");
-                System.out.println("The system will use mock data instead of actual API calls.");
-                System.out.println("Set a valid API key in application.properties or as an environment variable.");
-            }
-
             // Initialize services
-            RAGService ragService = new RAGService(openAiApiKey);
+            final RAGService finalRagService = new RAGService(openAiApiKey);
+            ragService = finalRagService;
             LLMService llmService = new LLMService(openAiApiKey);
 
             // Start the actor system
-            ActorSystem<Void> system = createActorSystem(ragService, llmService);
+            final ActorSystem<Void> finalSystem = createActorSystem(ragService, llmService);
+            system = finalSystem;
 
             // Start the web server
-            WebServer webServer = new WebServer(ragService, llmService);
+            final WebServer finalWebServer = new WebServer(ragService, llmService);
+            webServer = finalWebServer;
             webServer.start();
 
             logger.info("NEU Course Assistant started successfully");
+
+            // Add shutdown hook to gracefully stop services
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                logger.info("Shutting down NEU Course Assistant...");
+
+                // Close resources when application exits
+                if (finalWebServer != null) {
+                    try {
+                        finalWebServer.stop();
+                    } catch (Exception e) {
+                        logger.error("Error stopping web server", e);
+                    }
+                }
+
+                if (finalRagService != null) {
+                    try {
+                        finalRagService.close();
+                    } catch (Exception e) {
+                        logger.error("Error closing RAG service", e);
+                    }
+                }
+
+                // Terminate the actor system
+                if (finalSystem != null) {
+                    finalSystem.terminate();
+                }
+
+                logger.info("NEU Course Assistant shutdown complete");
+            }));
+
+            // Block the main thread to keep the application running
+            Thread.currentThread().join();
 
         } catch (Exception e) {
             logger.error("Failed to start NEU Course Assistant", e);

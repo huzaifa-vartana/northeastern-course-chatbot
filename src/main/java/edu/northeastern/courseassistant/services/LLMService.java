@@ -5,8 +5,11 @@ import com.theokanning.openai.OpenAiService;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.completion.chat.ChatCompletionResult;
+import okhttp3.OkHttpClient;
 
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * LLM Service for generating natural language responses
@@ -16,15 +19,27 @@ public class LLMService {
     private static final String MODEL = "gpt-4";
     private static final int MAX_TOKENS = 2000;
     private static final double TEMPERATURE = 0.7;
+    private static final int MAX_RETRIES = 3;
+    private static final int RETRY_DELAY_MS = 1000;
 
     private final OpenAiService openAiService;
 
     /**
-     * Constructor - initializes the OpenAI service
+     * Constructor - initializes the OpenAI service with extended timeouts
      * @param openAiApiKey API key for OpenAI
      */
     public LLMService(String openAiApiKey) {
-        this.openAiService = new OpenAiService(openAiApiKey);
+        // Create a custom OkHttpClient with increased timeouts
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .build();
+
+        // Use the custom client with the OpenAiService
+        // This works correctly
+        this.openAiService = new OpenAiService(openAiApiKey, Duration.ofSeconds(60));
+
     }
 
     /**
@@ -54,14 +69,58 @@ public class LLMService {
                 .temperature(TEMPERATURE)
                 .build();
 
-        // Execute the request and return the response
-        try {
-            ChatCompletionResult result = openAiService.createChatCompletion(request);
-            return result.getChoices().get(0).getMessage().getContent();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "I'm sorry, I'm having trouble generating a response. Please try again.";
+        // Execute the request with retry mechanism
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                ChatCompletionResult result = openAiService.createChatCompletion(request);
+                return result.getChoices().get(0).getMessage().getContent();
+            } catch (Exception e) {
+                // Log the exception
+                System.err.println("Error calling OpenAI API (attempt " + (attempt + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
+
+                if (attempt < MAX_RETRIES - 1) {
+                    // Wait before retrying
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS * (attempt + 1));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    // Last attempt failed, return a fallback response
+                    return generateFallbackResponse(userQuery, relevantCourses);
+                }
+            }
         }
+
+        // If all retries failed
+        return "I'm sorry, I'm having trouble connecting to my knowledge base right now. Please try again in a moment.";
+    }
+
+    /**
+     * Generates a fallback response when API calls fail
+     */
+    private String generateFallbackResponse(String userQuery, List<Course> relevantCourses) {
+        if (relevantCourses.isEmpty()) {
+            return "I apologize, but I couldn't connect to my language service to provide a detailed response. " +
+                    "I also couldn't find any courses matching your query. Please try again later or refine your search terms.";
+        }
+
+        StringBuilder response = new StringBuilder();
+        response.append("I apologize for the connection issue, but I found some courses that might interest you:\n\n");
+
+        // Include at most 3 relevant courses
+        int count = Math.min(relevantCourses.size(), 3);
+        for (int i = 0; i < count; i++) {
+            Course course = relevantCourses.get(i);
+            response.append("- ")
+                    .append(course.getSubject()).append(" ").append(course.getNumber())
+                    .append(": ").append(course.getTitle())
+                    .append(" (").append(course.getInstructor()).append(")\n");
+        }
+
+        response.append("\nFor more details about these courses, please try again later when the connection is restored.");
+        return response.toString();
     }
 
     /**
@@ -193,33 +252,5 @@ public class LLMService {
 
         // Reduce to unique courses
         return new ArrayList<>(new LinkedHashSet<>(highlightedCourses));
-    }
-
-    /**
-     * Enhances the system prompt with specific user preferences or context
-     * @param basePrompt The base system prompt
-     * @param userPreferences User preferences to include
-     * @return Enhanced system prompt
-     */
-    public String enhanceSystemPrompt(String basePrompt, Map<String, String> userPreferences) {
-        StringBuilder enhancedPrompt = new StringBuilder(basePrompt);
-        enhancedPrompt.append("\n\nAdditional Context:\n");
-
-        if (userPreferences.containsKey("campus")) {
-            enhancedPrompt.append("- The student is primarily interested in courses at the ");
-            enhancedPrompt.append(userPreferences.get("campus")).append(" campus.\n");
-        }
-
-        if (userPreferences.containsKey("program")) {
-            enhancedPrompt.append("- The student is enrolled in the ");
-            enhancedPrompt.append(userPreferences.get("program")).append(" program.\n");
-        }
-
-        if (userPreferences.containsKey("interests")) {
-            enhancedPrompt.append("- The student has expressed interest in courses related to: ");
-            enhancedPrompt.append(userPreferences.get("interests")).append(".\n");
-        }
-
-        return enhancedPrompt.toString();
     }
 }
